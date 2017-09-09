@@ -53,89 +53,124 @@ def testHamming():
 
     assert(distHamming(lineA, lineB) == 37)
 
-def xor_single_char(bytes, char):
+def xorSingleChar(bytes, char):
+    """
+    XORs all input bytes with a single key char
+    Input: bytearray text
+    Output: XORed bytearray text
+    """
     result = []
     for i in range(len(bytes)):
         result.append(bytes[i] ^ char)
     return bytearray(result)
 
-def rate_englishness(bytes):
+def rateEnglish(bytes):
+    """
+    Gives a score indicating how much the input bytearray chars resemble english
+    Higher is more likely to be written text, lower is more likely to be garbage
+    Input: bytearray text
+    Output: int score
+    """
     garbage_count = 0
     for i in bytes:
-        if is_garbage(i):
+        if isGarbageChar(i):
             garbage_count+=1
     return len(bytes)-garbage_count
 
-def is_garbage(byte):
+def isGarbageChar(byte):
+    """
+    Indicates whether this char is likely to be garbage or english
+    """
     if byte == 32: return False #space
     if byte >= 65 and byte <= 90: return False #uppercase
     if byte >= 97 and byte <= 122: return False #lowercase
     return True
 
-def most_likely_keychar(bytes):
+def MostLikelyKeySingleChar(bytes):
     """
+    Finds most likely key character, assuming that input is XOR encrypted with a single key char
     returns (key, keyscore)
     """
     key = None
     key_score = 0
     for char in range(255):
-        decoded = xor_single_char(bytes, char)
-        score = rate_englishness(decoded)
+        decoded = xorSingleChar(bytes, char)
+        score = rateEnglish(decoded)
         if score > key_score: # note: multiple keys with same good score possible
             key = char
             key_score = score
 
     return (key, key_score)
 
-def rotXor(bytes, key):
+def encodeRepeatXor(bytes, key):
+    """
+    Encodes input bytearray with given key of arbitrary size
+    returns bytearray of encoded characters
+    """
     return [bytes[i] ^ key[i % len(key)] for i in range(len(bytes))]
 
 if __name__ == '__main__':
     testHamming()
 
-    file = open("data/6.txt", "r")
-    # Decided to b64decode entire file into memory first
-    text = base64.b64decode(file.read())
-    file.close()
+    # b64decode entire message into memory first
+    message = ''
+    with open("data/6.txt", "r") as file:
+        message = base64.b64decode(file.read())
 
-    # Try all key sizes, compute average hamming norms
+    # Try many key sizes, compute average Hamming norms by comparing distance
+    # between every two keysize char blocks of the message
+    # Likely key sizes should show lower average Hamming norm
+
+    print("\nComputing Hamming norms for range of potential key sizes...\n")
+
     candidateKeySizes = []
-    for keysize in range(27, 31):
-        count = 0
-        totalDist = 0
+    for keySize in range(2, 40):
+        pairCount = 0
+        hammingSum = 0
         
-        for i in range(0, len(text), keysize):
-            bytesA = text[i:i+keysize]
-            bytesB = text[i+keysize:i+keysize*2]
-            if (len(bytesA) != len(bytesB)):
+        for i in range(0, len(message), keySize):
+            partA = message[i:i+keySize]
+            partB = message[i+keySize:i+keySize*2]
+            if (len(partA) != len(partB)):
                 break
-            count += 1
+            pairCount += 1
 
-            totalDist += distHamming(bytesA, bytesB)
+            hammingSum += distHamming(partA, partB)
 
-        avgNormDist = totalDist/(count * keysize)
-        candidateKeySizes.append((keysize, avgNormDist))
+        avgHamming = hammingSum/(pairCount * keySize)
+        candidateKeySizes.append((keySize, avgHamming))
         
-        print("Key Size: %s, avg norm dist: %s"%(keysize, avgNormDist))
+        print("Key Size: %s, Average normal distance: %s"%(keySize, avgHamming))
     
-    candidateKeySizes.sort(key=lambda tup:tup[1])
+    # Sort most likely key sizes, take top N
 
-    print("Most likely key sizes:")
-    for i in candidateKeySizes[:2]:
+    candidateKeySizes.sort(key=lambda tup:tup[1])
+    candidateKeySizes = candidateKeySizes[:4]
+
+    print("\nMost likely key sizes found:\n")
+    for i in candidateKeySizes:
         print(" - %s, score: %s"%(i[0], i[1]))
 
-    candidateKeySizes = candidateKeySizes[:2]
+    # For each likely key size, split message into lists per key-char
+
+    print("\nSearching for keys...\n")
 
     candidate_keys = []
     for candidate in candidateKeySizes:
-        keysize = candidate[0]
-        blocks = [[] for i in range(keysize)]
-        for i in range(0, len(text)):
-            blocks[i%keysize].append(text[i])
+        keySize = candidate[0]
+        blocks = [[] for i in range(keySize)]
+        for i in range(0, len(message)):
+            blocks[i%keySize].append(message[i])
+
+        # Find the most likely single char for each part of the key
 
         keyChars = []
         for block in blocks:
-            keyChars.append(most_likely_keychar(block))
+            keyChars.append(MostLikelyKeySingleChar(block))
+
+        # Combine results to create whole key, and aggregate single-char scores into an average
+        # score for that whole key
+
         key = []
         keyScore = 0 # todo: as comprehension
         for i in keyChars:
@@ -144,16 +179,21 @@ if __name__ == '__main__':
 
         candidate_keys.append((key, keyScore))
 
+    # sort potential keys by score
+
     candidate_keys.sort(key=lambda tup:tup[1], reverse=True)
-    
+
+    print("\nMost likely keys found:\n")
     for key in candidate_keys:
         print("key: %s, score: %s"%(byteArrayToStr(key[0]), key[1]))
 
+    # take the most likely key and decrypt the message
+
     key = candidate_keys[0][0]
-    decryptedBytes = rotXor(text, key)
+    decryptedBytes = encodeRepeatXor(message, key)
     decrypted_str = byteArrayToStr(decryptedBytes)
 
-    print("Done! Message: \n")
+    print("\nDone! Message: \n")
     print(decrypted_str)
 
     
