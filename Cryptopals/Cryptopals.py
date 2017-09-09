@@ -10,6 +10,9 @@ import base64
 # we don't know key length. We also don't know char range.
 
 # create a fun dist_hamming, which returns number of different bits between two (equal len) strings
+
+
+Todo: It'll be interesting to convert this code to numpy and/or tensorflow later
 """
 
 def strToByteArray(str):
@@ -73,9 +76,21 @@ if __name__ == '__main__':
         candidate_sizes.append((keysize, avgNormDist))
         
         print("Key Size: %s, avg norm dist: %s"%(keysize, avgNormDist))
-
+    
     candidate_sizes.sort(key=lambda tup:tup[1])
 
     print("Most likely key sizes:")
     for i in candidate_sizes[:5]:
         print(" - %s, score: %s"%(i[0], i[1]))
+
+    candidate_sizes = candidate_sizes[:5]
+
+    for candidate in candidate_sizes:
+        keysize = candidate[0]
+        blocks = [[] for i in range(keysize)]
+        for i in range(0, len(text), keysize):
+            blocks[i%keysize].append(text[i])
+
+
+
+    print("bla")
