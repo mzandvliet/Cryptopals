@@ -50,18 +50,17 @@ if __name__ == '__main__':
     testHamming()
 
     file = open("data/6.txt", "r")
-
-    # we forgot to decode base64 first
-    # should we perhaps first read in the entire file, base64 decode that, then loop?
-
+    # Decided to b64decode entire file into memory first
     text = base64.b64decode(file.read())
     file.close()
 
+    # Try all key sizes, compute average hamming norms
+    candidate_sizes = []
     for keysize in range(2, 40):
         count = 0
         totalDist = 0
         
-        for i in range(0, len(text), keysize*2):
+        for i in range(0, len(text), keysize):
             bytesA = text[i:i+keysize]
             bytesB = text[i+keysize:i+keysize*2]
             if (len(bytesA) != len(bytesB)):
@@ -70,4 +69,13 @@ if __name__ == '__main__':
 
             totalDist += distHamming(bytesA, bytesB)
 
-        print("\nKey Size: %s, avg norm dist: %s"%(keysize, totalDist/(count * keysize)))
+        avgNormDist = totalDist/(count * keysize)
+        candidate_sizes.append((keysize, avgNormDist))
+        
+        print("Key Size: %s, avg norm dist: %s"%(keysize, avgNormDist))
+
+    candidate_sizes.sort(key=lambda tup:tup[1])
+
+    print("Most likely key sizes:")
+    for i in candidate_sizes[:5]:
+        print(" - %s, score: %s"%(i[0], i[1]))
