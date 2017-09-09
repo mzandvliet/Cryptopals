@@ -4,14 +4,7 @@ import base64
 from functools import reduce
 
 """ 
-# plaintext has been put through:
-1. repeat-key xor
-2. base64
-
-# we don't know key length. We also don't know char range.
-
-# create a fun dist_hamming, which returns number of different bits between two (equal len) strings
-
+https://cryptopals.com/sets/1/challenges/6
 
 Todo: It'll be interesting to convert this code to numpy and/or tensorflow later
 """
@@ -28,6 +21,7 @@ def distHamming(lineA, lineB):
     Input: two bytearrays of equal length
     Output: number of differing bits
     """
+
     if len(lineA) != len(lineB): raise ValueError("lineA and lineB need to be same length")
 
     diffBits = 0
@@ -59,6 +53,7 @@ def xorSingleChar(bytes, char):
     Input: bytearray text
     Output: XORed bytearray text
     """
+
     result = []
     for i in range(len(bytes)):
         result.append(bytes[i] ^ char)
@@ -71,6 +66,7 @@ def rateEnglish(bytes):
     Input: bytearray text
     Output: int score
     """
+
     garbage_count = 0
     for i in bytes:
         if isGarbageChar(i):
@@ -81,6 +77,7 @@ def isGarbageChar(byte):
     """
     Indicates whether this char is likely to be garbage or english
     """
+
     if byte == 32: return False #space
     if byte >= 65 and byte <= 90: return False #uppercase
     if byte >= 97 and byte <= 122: return False #lowercase
@@ -91,6 +88,7 @@ def MostLikelyKeySingleChar(bytes):
     Finds most likely key character, assuming that input is XOR encrypted with a single key char
     returns (key, keyscore)
     """
+
     key = None
     key_score = 0
     for char in range(255):
@@ -107,6 +105,7 @@ def encodeRepeatXor(bytes, key):
     Encodes input bytearray with given key of arbitrary size
     returns bytearray of encoded characters
     """
+
     return [bytes[i] ^ key[i % len(key)] for i in range(len(bytes))]
 
 if __name__ == '__main__':
@@ -151,12 +150,12 @@ if __name__ == '__main__':
     for i in candidateKeySizes:
         print(" - %s, score: %s"%(i[0], i[1]))
 
-    # For each likely key size, split message into lists per key-char
-
     print("\nSearching for keys...\n")
 
     candidate_keys = []
     for candidate in candidateKeySizes:
+        # For each likely key size, split message into lists per key-char
+
         keySize = candidate[0]
         blocks = [[] for i in range(keySize)]
         for i in range(0, len(message)):

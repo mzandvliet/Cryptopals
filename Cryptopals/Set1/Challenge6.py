@@ -1,99 +1,19 @@
 import codecs
 import binascii
-
-""" 
-# plaintext has been put through:
-1. repeat-key xor
-2. base64
-
-# we don't know key length. We also don't know char range.
-
-# create a fun dist_hamming, which returns number of different bits between two (equal len) strings
-"""
-
-def strToByteArray(str):
-    return bytearray(str.encode('utf-8'))
-
-def distHamming(lineA, lineB):
-    """
-    Hamming distance
-    Input: two bytearrays of equal length
-    Output: number of differing bits
-    """
-    if len(lineA) != len(lineB): raise ValueError("lineA and lineB need to be same length")
-
-    diffBits = 0
-    for i in range(len(lineA)):
-        a = lineA[i]
-        b = lineB[i]
-
-        for i in range(8):
-            shiftedA = a >> i
-            shiftedB = b >> i
-            maskedA = shiftedA & 0x1
-            maskedB = shiftedB & 0x1
-            if maskedA != maskedB: diffBits += 1
-
-    return diffBits
-
-if __name__ == '__main__':
-    lineA = "this is a test"
-    lineB = "wokka wokka!!!"
-
-    lineA = bytearray(lineA.encode('utf-8'))
-    lineB = bytearray(lineB.encode('utf-8'))
-
-    print(distHamming(lineA, lineB))
-
-    file = open("data/6.txt", "r")
-    for keysize in range(2, 40):
-        print("\nKey Size: %s"%(keysize))
-        file.seek(0,0)
-        bytes = file.read(keysize * 2)
-        while bytes != "":
-            bytesA = strToByteArray(bytes[:keysize])
-            bytesB = strToByteArray(bytes[keysize:])
-            if (len(bytesA) != len(bytesB)):
-                print("Early out, not enough text to feed hamming")
-                break
-            print(distHamming(bytesA, bytesB))
-            bytes = file.read(keysize * 2)
-
-    file.close()
-
-    """
-    # experiment with bitshift/bitmask for hamming functino
-    charA = ord("a")
-    charB = ord("b")
-
-    diffBits = 0
-    for i in range(8):
-        shiftedA = charA >> i
-        shiftedB = charB >> i
-        maskedA = shiftedA & 0x1
-        maskedB = shiftedB & 0x1
-        if maskedA != maskedB: diffBits += 1
-    print(diffBits)
-    """
-
-# ==========================================================================
-
-import codecs
-import binascii
 import base64
+from functools import reduce
 
 """ 
-# plaintext has been put through:
-1. repeat-key xor
-2. base64
+https://cryptopals.com/sets/1/challenges/6
 
-# we don't know key length. We also don't know char range.
-
-# create a fun dist_hamming, which returns number of different bits between two (equal len) strings
+Todo: It'll be interesting to convert this code to numpy and/or tensorflow later
 """
 
 def strToByteArray(str):
     return bytearray(str.encode('utf-8'))
+
+def byteArrayToStr(bytes):
+    return ''.join(chr(i) for i in bytes)
 
 def distHamming(lineA, lineB):
     """
@@ -101,6 +21,7 @@ def distHamming(lineA, lineB):
     Input: two bytearrays of equal length
     Output: number of differing bits
     """
+
     if len(lineA) != len(lineB): raise ValueError("lineA and lineB need to be same length")
 
     diffBits = 0
@@ -126,107 +47,152 @@ def testHamming():
 
     assert(distHamming(lineA, lineB) == 37)
 
-if __name__ == '__main__':
-    testHamming()
-
-    file = open("data/6.txt", "r")
-
-    # we forgot to decode base64 first
-    # should we perhaps first read in the entire file, base64 decode that, then loop?
-
-    for keysize in range(2, 40):
-        file.seek(0,0)
-        bytes = file.read(keysize * 2)
-        bytes = base64.b64decode(bytes) # Todo: hmmmmm
-        count = 0
-        totalDist = 0
-        
-        while bytes != "":
-            bytesA = bytes[:keysize]
-            bytesB = bytes[keysize:]
-            if (len(bytesA) != len(bytesB)):
-                break
-            count += 1
-
-            totalDist += distHamming(bytesA, bytesB)
-            bytes = file.read(keysize * 2)
-
-        print("\nKey Size: %s, avg norm dist: %s"%(keysize, totalDist/(count * keysize)))
-
-    file.close()
-
-# ==================================================================
-
-import codecs
-import binascii
-import base64
-
-""" 
-# plaintext has been put through:
-1. repeat-key xor
-2. base64
-
-# we don't know key length. We also don't know char range.
-
-# create a fun dist_hamming, which returns number of different bits between two (equal len) strings
-"""
-
-def strToByteArray(str):
-    return bytearray(str.encode('utf-8'))
-
-def distHamming(lineA, lineB):
+def xorSingleChar(bytes, char):
     """
-    Hamming distance
-    Input: two bytearrays of equal length
-    Output: number of differing bits
+    XORs all input bytes with a single key char
+    Input: bytearray text
+    Output: XORed bytearray text
     """
-    if len(lineA) != len(lineB): raise ValueError("lineA and lineB need to be same length")
 
-    diffBits = 0
-    for i in range(len(lineA)):
-        a = lineA[i]
-        b = lineB[i]
+    result = []
+    for i in range(len(bytes)):
+        result.append(bytes[i] ^ char)
+    return bytearray(result)
 
-        for i in range(8):
-            shiftedA = a >> i
-            shiftedB = b >> i
-            maskedA = shiftedA & 0x1
-            maskedB = shiftedB & 0x1
-            if maskedA != maskedB: diffBits += 1
+def rateEnglish(bytes):
+    """
+    Gives a score indicating how much the input bytearray chars resemble english
+    Higher is more likely to be written text, lower is more likely to be garbage
+    Input: bytearray text
+    Output: int score
+    """
 
-    return diffBits
+    garbage_count = 0
+    for i in bytes:
+        if isGarbageChar(i):
+            garbage_count+=1
+    return len(bytes)-garbage_count
 
-def testHamming():
-    lineA = "this is a test"
-    lineB = "wokka wokka!!!"
+def isGarbageChar(byte):
+    """
+    Indicates whether this char is likely to be garbage or english
+    """
 
-    lineA = bytearray(lineA.encode('utf-8'))
-    lineB = bytearray(lineB.encode('utf-8'))
+    if byte == 32: return False #space
+    if byte >= 65 and byte <= 90: return False #uppercase
+    if byte >= 97 and byte <= 122: return False #lowercase
+    return True
 
-    assert(distHamming(lineA, lineB) == 37)
+def MostLikelyKeySingleChar(bytes):
+    """
+    Finds most likely key character, assuming that input is XOR encrypted with a single key char
+    returns (key, keyscore)
+    """
+
+    key = None
+    key_score = 0
+    for char in range(255):
+        decoded = xorSingleChar(bytes, char)
+        score = rateEnglish(decoded)
+        if score > key_score: # note: multiple keys with same good score possible
+            key = char
+            key_score = score
+
+    return (key, key_score)
+
+def encodeRepeatXor(bytes, key):
+    """
+    Encodes input bytearray with given key of arbitrary size
+    returns bytearray of encoded characters
+    """
+
+    return [bytes[i] ^ key[i % len(key)] for i in range(len(bytes))]
 
 if __name__ == '__main__':
     testHamming()
 
-    file = open("data/6.txt", "r")
+    # b64decode entire message into memory first
+    message = ''
+    with open("data/6.txt", "r") as file:
+        message = base64.b64decode(file.read())
 
-    # we forgot to decode base64 first
-    # should we perhaps first read in the entire file, base64 decode that, then loop?
+    # Try many key sizes, compute average Hamming norms by comparing distance
+    # between every two keysize char blocks of the message
+    # Likely key sizes should show lower average Hamming norm
 
-    text = base64.b64decode(file.read())
-    file.close()
+    print("\nComputing Hamming norms for range of potential key sizes...\n")
 
-    for keysize in range(2, 40):
-        count = 0
-        totalDist = 0
+    candidateKeySizes = []
+    for keySize in range(2, 40):
+        pairCount = 0
+        hammingSum = 0
         
-        for i in range(0, len(text), keysize*2):
-            bytesA = text[i:i+keysize]
-            bytesB = text[i+keysize:i+keysize*2]
-            if (len(bytesA) != len(bytesB)):
+        for i in range(0, len(message), keySize):
+            partA = message[i:i+keySize]
+            partB = message[i+keySize:i+keySize*2]
+            if (len(partA) != len(partB)):
                 break
-            count += 1
+            pairCount += 1
 
-            totalDist += distHamming(bytesA, bytesB)
+            hammingSum += distHamming(partA, partB)
 
-        print("\nKey Size: %s, avg norm dist: %s"%(keysize, totalDist/(count * keysize)))
+        avgHamming = hammingSum/(pairCount * keySize)
+        candidateKeySizes.append((keySize, avgHamming))
+        
+        print("Key Size: %s, Average normal distance: %s"%(keySize, avgHamming))
+    
+    # Sort most likely key sizes, take top N
+
+    candidateKeySizes.sort(key=lambda tup:tup[1])
+    candidateKeySizes = candidateKeySizes[:4]
+
+    print("\nMost likely key sizes found:\n")
+    for i in candidateKeySizes:
+        print(" - %s, score: %s"%(i[0], i[1]))
+
+    print("\nSearching for keys...\n")
+
+    candidate_keys = []
+    for candidate in candidateKeySizes:
+        # For each likely key size, split message into lists per key-char
+
+        keySize = candidate[0]
+        blocks = [[] for i in range(keySize)]
+        for i in range(0, len(message)):
+            blocks[i%keySize].append(message[i])
+
+        # Find the most likely single char for each part of the key
+
+        keyChars = []
+        for block in blocks:
+            keyChars.append(MostLikelyKeySingleChar(block))
+
+        # Combine results to create whole key, and aggregate single-char scores into an average
+        # score for that whole key
+
+        key = []
+        keyScore = 0 # todo: as comprehension
+        for i in keyChars:
+            key.append(i[0])
+            keyScore += i[1]
+
+        candidate_keys.append((key, keyScore))
+
+    # sort potential keys by score
+
+    candidate_keys.sort(key=lambda tup:tup[1], reverse=True)
+
+    print("\nMost likely keys found:\n")
+    for key in candidate_keys:
+        print("key: %s, score: %s"%(byteArrayToStr(key[0]), key[1]))
+
+    # take the most likely key and decrypt the message
+
+    key = candidate_keys[0][0]
+    decryptedBytes = encodeRepeatXor(message, key)
+    decrypted_str = byteArrayToStr(decryptedBytes)
+
+    print("\nDone! Message: \n")
+    print(decrypted_str)
+
+    
